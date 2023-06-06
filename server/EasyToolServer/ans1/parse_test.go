@@ -6,6 +6,6 @@ import (
 )
 
 func TestParseAsn1(t *testing.T) {
-	file, _ := os.ReadFile("C:\\Users\\12691\\Desktop\\1.dat")
+	file, _ := os.ReadFile("E:\\IDEA\\Web\\Mine\\EasyTool\\server\\EasyToolServer\\resources\\GB.dat")
 	ParseAsn1(file)
 }
