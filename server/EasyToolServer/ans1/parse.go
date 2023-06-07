@@ -2,6 +2,7 @@ package ans1
 
 import (
 	"EasyToolServer/log"
+	"encoding/hex"
 	"strconv"
 	"strings"
 )
@@ -42,21 +43,21 @@ func ParseAsn1(asn1Byte []byte) {
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
-			log.Infof("HexValue = %s", string(value))
+			log.Infof("HexValue = %d", parseInt(value))
 		case IA5String:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
-			log.Infof("HexValue = %s", string(value))
+			log.Infof("HexValue = %s", parseString(value))
 		case UTF8String:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
-			log.Infof("HexValue = %s", string(value))
+			log.Infof("HexValue = %s", parseString(value))
 		case OctetString:
 			if com := asn1Byte[cursor : cursor+2]; strings.EqualFold(string(com), "82") {
 				cursor += 2
@@ -81,21 +82,21 @@ func ParseAsn1(asn1Byte []byte) {
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
-			log.Infof("HexValue = %s", string(value))
+			log.Infof("HexValue = %s", parseString(value))
 		case ObjectIdentifier:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
-			log.Infof("HexValue = %s", string(value))
+			log.Infof("HexValue = %s", parseString(value))
 		case Boolean:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
-			log.Infof("HexValue = %s", string(value))
+			log.Infof("HexValue = %t", parseBoolean(value))
 		case BitString:
 			if com := asn1Byte[cursor : cursor+2]; strings.EqualFold(string(com), "82") {
 				cursor += 2
@@ -131,5 +132,33 @@ func ParseAsn1(asn1Byte []byte) {
 				cursor = cursor + valLenInt*2
 			}
 		}
+	}
+}
+
+// 转换为整型
+func parseInt(value []byte) int64 {
+	resultValue, err := strconv.ParseInt(string(value), 16, 0)
+	if err != nil {
+		return 0
+	}
+	return resultValue
+}
+
+// 转换为字符串
+func parseString(value []byte) string {
+	decodeByte, err := hex.DecodeString(string(value))
+	if err != nil {
+		return ""
+	}
+	// 将字节数组转换为字符串
+	str := string(decodeByte)
+	return str
+}
+
+func parseBoolean(value []byte) bool {
+	if strings.EqualFold(string(value), "00") {
+		return false
+	} else {
+		return true
 	}
 }
