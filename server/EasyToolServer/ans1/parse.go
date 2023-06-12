@@ -3,8 +3,10 @@ package ans1
 import (
 	"EasyToolServer/log"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Asn1Type struct {
@@ -82,6 +84,8 @@ func ParseAsn1(asn1Byte []byte) {
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
+			generalizedTime, _ := parseGeneralizedTime(value)
+			fmt.Println(generalizedTime)
 			log.Infof("HexValue = %s", parseString(value))
 		case ObjectIdentifier:
 			valLen := asn1Byte[cursor : cursor+2]
@@ -161,4 +165,20 @@ func parseBoolean(value []byte) bool {
 	} else {
 		return true
 	}
+}
+
+func parseGeneralizedTime(bytes []byte) (ret time.Time, err error) {
+	decodeByte, err := hex.DecodeString(string(bytes))
+	const formatStr = "20060102150405Z0700"
+	s := string(decodeByte)
+
+	if ret, err = time.Parse(formatStr, s); err != nil {
+		return
+	}
+
+	if serialized := ret.Format(formatStr); serialized != s {
+		err = fmt.Errorf("asn1: time did not serialize back to the original value and may be invalid: given %q, but serialized as %q", s, serialized)
+	}
+
+	return
 }
