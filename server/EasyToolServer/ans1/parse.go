@@ -7,12 +7,19 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type Asn1Type struct {
 	Tag, Type string
 	Byte      byte
 }
+
+type ParseError struct {
+	Msg string
+}
+
+func (e ParseError) Error() string { return "asn1: syntax error: " + e.Msg }
 
 func ParseAsn1(asn1Byte []byte) {
 	var cursor, entireLen int64
@@ -45,21 +52,24 @@ func ParseAsn1(asn1Byte []byte) {
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
-			log.Infof("HexValue = %d", parseInt(value))
+			resultValue, _ := parseInt(value)
+			fmt.Println(resultValue)
 		case IA5String:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
-			log.Infof("HexValue = %s", parseString(value))
+			ret, _ := parseIA5String(value)
+			fmt.Println(ret)
 		case UTF8String:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
-			log.Infof("HexValue = %s", parseString(value))
+			ret, _ := parseUTF8String(value)
+			fmt.Println(ret)
 		case OctetString:
 			if com := asn1Byte[cursor : cursor+2]; strings.EqualFold(string(com), "82") {
 				cursor += 2
@@ -140,12 +150,9 @@ func ParseAsn1(asn1Byte []byte) {
 }
 
 // 转换为整型
-func parseInt(value []byte) int64 {
-	resultValue, err := strconv.ParseInt(string(value), 16, 0)
-	if err != nil {
-		return 0
-	}
-	return resultValue
+func parseInt(value []byte) (resultValue int64, err error) {
+	resultValue, err = strconv.ParseInt(string(value), 16, 0)
+	return
 }
 
 // 转换为字符串
@@ -181,4 +188,23 @@ func parseGeneralizedTime(bytes []byte) (ret time.Time, err error) {
 	}
 
 	return
+}
+
+func parseIA5String(bytes []byte) (ret string, err error) {
+	for _, b := range bytes {
+		if b >= utf8.RuneSelf {
+			err = ParseError{"IA5String contains invalid character"}
+			return
+		}
+	}
+	ret = string(bytes)
+	return
+}
+
+func parseUTF8String(bytes []byte) (ret string, err error) {
+	if !utf8.Valid(bytes) {
+		err = ParseError{"asn1: invalid UTF-8 string"}
+		return
+	}
+	return string(bytes), nil
 }
