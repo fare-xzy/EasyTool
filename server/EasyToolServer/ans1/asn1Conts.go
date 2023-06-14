@@ -3,7 +3,7 @@ package ans1
 const (
 	Boolean          = "01" // 布尔值
 	Integer          = "02" // 整数
-	BitString        = "03" // 位字符串
+	BitStringTag     = "03" // 位字符串
 	OctetString      = "04" // 字符串
 	ObjectIdentifier = "06" // 对象标识符
 	UTF8String       = "0c" // 可打印的UTF-8字符串

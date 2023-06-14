@@ -30,22 +30,6 @@ func ParseAsn1(asn1Byte []byte) {
 		log.Infof("%s", string(tag))
 		cursor += 2
 		switch string(tag) {
-		case Sequence:
-			if com := asn1Byte[cursor : cursor+2]; strings.EqualFold(string(com), "82") {
-				cursor += 2
-				log.Infof("%s", string(com))
-				valLen := asn1Byte[cursor : cursor+4]
-				valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
-				cursor += 4
-				ParseAsn1(asn1Byte[cursor : cursor+valLenInt*2])
-				cursor = cursor + valLenInt*2
-			} else {
-				valLen := asn1Byte[cursor : cursor+2]
-				valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
-				cursor += 2
-				ParseAsn1(asn1Byte[cursor : cursor+valLenInt*2])
-				cursor = cursor + valLenInt*2
-			}
 		case Integer:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
@@ -70,24 +54,6 @@ func ParseAsn1(asn1Byte []byte) {
 			cursor = cursor + valLenInt*2
 			ret, _ := parseUTF8String(value)
 			fmt.Println(ret)
-		case OctetString:
-			if com := asn1Byte[cursor : cursor+2]; strings.EqualFold(string(com), "82") {
-				cursor += 2
-				log.Infof("%s", string(com))
-				valLen := asn1Byte[cursor : cursor+4]
-				valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
-				cursor += 4
-				value := asn1Byte[cursor : cursor+valLenInt*2]
-				cursor = cursor + valLenInt*2
-				log.Infof("HexValue = %s", string(value))
-			} else {
-				valLen := asn1Byte[cursor : cursor+2]
-				valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
-				cursor += 2
-				value := asn1Byte[cursor : cursor+valLenInt*2]
-				cursor = cursor + valLenInt*2
-				log.Infof("HexValue = %s", string(value))
-			}
 		case GeneralizedTime:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
@@ -103,7 +69,7 @@ func ParseAsn1(asn1Byte []byte) {
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
-			log.Infof("HexValue = %s", parseString(value))
+			log.Infof("HexValue = %s", parse16ObjectIdentifier(value))
 		case Boolean:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
@@ -111,7 +77,9 @@ func ParseAsn1(asn1Byte []byte) {
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
 			log.Infof("HexValue = %t", parseBoolean(value))
-		case BitString:
+		case OctetString:
+			fallthrough
+		case BitStringTag:
 			if com := asn1Byte[cursor : cursor+2]; strings.EqualFold(string(com), "82") {
 				cursor += 2
 				log.Infof("%s", string(com))
@@ -129,6 +97,8 @@ func ParseAsn1(asn1Byte []byte) {
 				cursor = cursor + valLenInt*2
 				log.Infof("HexValue = %s", string(value))
 			}
+		case Sequence:
+			fallthrough
 		case Optional:
 			if com := asn1Byte[cursor : cursor+2]; strings.EqualFold(string(com), "82") {
 				cursor += 2
@@ -191,20 +161,45 @@ func parseGeneralizedTime(bytes []byte) (ret time.Time, err error) {
 }
 
 func parseIA5String(bytes []byte) (ret string, err error) {
-	for _, b := range bytes {
+	decodeByte, err := hex.DecodeString(string(bytes))
+	for _, b := range decodeByte {
 		if b >= utf8.RuneSelf {
 			err = ParseError{"IA5String contains invalid character"}
 			return
 		}
 	}
-	ret = string(bytes)
+	ret = string(decodeByte)
 	return
 }
 
 func parseUTF8String(bytes []byte) (ret string, err error) {
-	if !utf8.Valid(bytes) {
+	decodeByte, err := hex.DecodeString(string(bytes))
+	if !utf8.Valid(decodeByte) {
 		err = ParseError{"asn1: invalid UTF-8 string"}
 		return
 	}
-	return string(bytes), nil
+	return string(decodeByte), nil
+}
+
+func parse16ObjectIdentifier(bytes []byte) string {
+	decodeByte, _ := hex.DecodeString(string(bytes))
+	oid := make([]int, 0)
+	value := 0
+	for _, b := range decodeByte {
+		value = (value << 7) | int(b&0x7F)
+		if b&0x80 == 0 {
+			oid = append(oid, value)
+			value = 0
+		}
+	}
+	return oidToString(oid)
+}
+
+// 将 OID 转换为字符串形式
+func oidToString(oid []int) string {
+	components := make([]string, len(oid))
+	for i, v := range oid {
+		components[i] = fmt.Sprintf("%d", v)
+	}
+	return strings.Join(components, ".")
 }
