@@ -30,7 +30,7 @@ func ParseAsn1(asn1Byte []byte) {
 		log.Infof("%s", string(tag))
 		cursor += 2
 		switch string(tag) {
-		case Integer:
+		case IntegerTag:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
@@ -38,7 +38,7 @@ func ParseAsn1(asn1Byte []byte) {
 			cursor = cursor + valLenInt*2
 			resultValue, _ := parseInt(value)
 			fmt.Println(resultValue)
-		case IA5String:
+		case IA5StringTag:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
@@ -46,7 +46,7 @@ func ParseAsn1(asn1Byte []byte) {
 			cursor = cursor + valLenInt*2
 			ret, _ := parseIA5String(value)
 			fmt.Println(ret)
-		case UTF8String:
+		case UTF8StringTag:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
@@ -54,30 +54,33 @@ func ParseAsn1(asn1Byte []byte) {
 			cursor = cursor + valLenInt*2
 			ret, _ := parseUTF8String(value)
 			fmt.Println(ret)
-		case GeneralizedTime:
+		case GeneralizedTimeTag:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
 			generalizedTime, _ := parseGeneralizedTime(value)
-			fmt.Println(generalizedTime)
 			log.Infof("HexValue = %s", parseString(value))
-		case ObjectIdentifier:
+			fmt.Println(generalizedTime)
+
+		case ObjectIdentifierTag:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
-			log.Infof("HexValue = %s", parse16ObjectIdentifier(value))
-		case Boolean:
+			log.Infof("HexValue = %s", string(value))
+			identifier, _ := parseObjectIdentifier(value)
+			log.Infof("RealValue = %s", identifier)
+		case BooleanTag:
 			valLen := asn1Byte[cursor : cursor+2]
 			valLenInt, _ := strconv.ParseInt(string(valLen), 16, 0)
 			cursor += 2
 			value := asn1Byte[cursor : cursor+valLenInt*2]
 			cursor = cursor + valLenInt*2
 			log.Infof("HexValue = %t", parseBoolean(value))
-		case OctetString:
+		case OctetStringTag:
 			fallthrough
 		case BitStringTag:
 			if com := asn1Byte[cursor : cursor+2]; strings.EqualFold(string(com), "82") {
@@ -97,9 +100,9 @@ func ParseAsn1(asn1Byte []byte) {
 				cursor = cursor + valLenInt*2
 				log.Infof("HexValue = %s", string(value))
 			}
-		case Sequence:
+		case SequenceTag:
 			fallthrough
-		case Optional:
+		case OptionalTag:
 			if com := asn1Byte[cursor : cursor+2]; strings.EqualFold(string(com), "82") {
 				cursor += 2
 				log.Infof("%s", string(com))
@@ -181,25 +184,62 @@ func parseUTF8String(bytes []byte) (ret string, err error) {
 	return string(decodeByte), nil
 }
 
-func parse16ObjectIdentifier(bytes []byte) string {
-	decodeByte, _ := hex.DecodeString(string(bytes))
+// 将 16 进制字符串转换为字节切片
+func hexStringToBytes(hexStr string) ([]byte, error) {
+	// 假设输入的 16 进制字符串是有效的
+	length := len(hexStr) / 2
+	bytes := make([]byte, length)
+	for i := 0; i < length; i++ {
+		_, err := fmt.Sscanf(hexStr[2*i:2*i+2], "%2x", &bytes[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return bytes, nil
+}
+
+func parseObjectIdentifier(bytes []byte) (ret string, err error) {
+	//decodeByte, err := hex.DecodeString(string(bytes))
+	// 将 16 进制的 OID 解码为字节切片
+	bytes, err = hexStringToBytes(string(bytes))
+	if err != nil {
+		fmt.Println("解码错误:", err)
+		return
+	}
+
+	// 手动解析字节切片表示的 OID
+	oid := parseOID(bytes)
+
+	// 将 OID 转换为字符串形式
+	ret = oidToString(oid)
+	return
+}
+
+// 手动解析字节切片表示的 OID
+func parseOID(bytes []byte) []int {
 	oid := make([]int, 0)
 	value := 0
-	for _, b := range decodeByte {
+	for _, b := range bytes {
 		value = (value << 7) | int(b&0x7F)
 		if b&0x80 == 0 {
 			oid = append(oid, value)
 			value = 0
 		}
 	}
-	return oidToString(oid)
+	return oid
 }
 
 // 将 OID 转换为字符串形式
 func oidToString(oid []int) string {
-	components := make([]string, len(oid))
-	for i, v := range oid {
-		components[i] = fmt.Sprintf("%d", v)
+	if len(oid) == 0 {
+		return ""
 	}
+
+	components := make([]string, len(oid))
+	components[0] = fmt.Sprintf("%d.%d", oid[0]/40, oid[0]%40)
+	for i := 1; i < len(oid); i++ {
+		components[i] = fmt.Sprintf("%d", oid[i])
+	}
+
 	return strings.Join(components, ".")
 }
